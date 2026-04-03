@@ -1,6 +1,6 @@
 require("dotenv").config();
 const { ethers } = require("ethers");
-const { FhenixClient } = require("fhenixjs");
+const { cofhejs, Encryptable } = require("cofhejs/node");
 const express = require("express");
 const fs = require("fs");
 
@@ -11,21 +11,30 @@ app.use(express.json());
 const provider = new ethers.JsonRpcProvider("https://sepolia-rollup.arbitrum.io/rpc");
 const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 
-// Your newly deployed ArbiVeil Contract
+// Your deployed ArbiVeil Contract
 const CONTRACT_ADDRESS = "0x691Bd659D7853b9f64Aa7563700CE3319eaed3cb"; 
 
-// Read the compiled ABI directly from Hardhat's artifacts to avoid ethers fragment errors
+// Read the compiled ABI directly from Hardhat's artifacts
 const contractArtifact = JSON.parse(fs.readFileSync("./artifacts/contracts/ConfidentialCompute.sol/ConfidentialCompute.json", "utf8"));
 const contract = new ethers.Contract(CONTRACT_ADDRESS, contractArtifact.abi, wallet);
 
 app.post("/verify-risk", async (req, res) => {
     try {
-        console.log("[Skill API] Initializing Fhenix Client on Arbitrum Sepolia...");
-        const fhenixClient = new FhenixClient({ provider });
+        console.log("[Skill API] Initializing CoFHE Client for Arbitrum Sepolia...");
+        
+        await cofhejs.initialize({
+            provider: provider,
+            signer: wallet
+        });
 
         console.log("[Skill API] Encrypting Agent Risk Data...");
-        // Encrypt the risk score before it ever touches the blockchain
-        const encryptedScore = await fhenixClient.encrypt_uint32(req.body.riskScore || 750);
+        
+        // FIX: Added the array format back, and explicitly passed '0' as the securityZone
+        const [encryptedScore] = await cofhejs.encrypt(
+            CONTRACT_ADDRESS, 
+            [Encryptable.uint32(req.body.riskScore || 750)],
+            0 
+        );
 
         console.log("[Skill API] Sending Confidential Transaction...");
         const tx = await contract.setEncryptedData(encryptedScore);
@@ -35,14 +44,4 @@ app.post("/verify-risk", async (req, res) => {
         await tx.wait();
 
         res.json({
-            success: true,
-            message: "Confidential Risk Profile Verified on Arbitrum.",
-            txHash: tx.hash
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.listen(3000, () => console.log("ArbiVeil Confidential Skill API running on port 3000"));
+            success
