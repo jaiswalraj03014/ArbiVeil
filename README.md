@@ -1,6 +1,3 @@
-Here is the clean version of the README without the emojis. 
-
-```markdown
 # ArbiVeil: Confidential Agent Compute
 
 **A privacy-first framework extension enabling AI Agents to compute risk and strategy on Arbitrum without leaking data to the public mempool.**
